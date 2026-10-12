@@ -1,0 +1,819 @@
+%YAML 1.2
+---
+# See http://www.sublimetext.com/docs/syntax.html
+file_extensions:
+  - .gram
+scope: source.pegen
+variables:
+  identifier: '([a-zA-Z_][a-zA-Z0-9_]*)'
+  well_known_python_meta: 'subheader|header|trailer'
+  well_known_meta: '{{well_known_python_meta}}|class'
+  string_prefix: '(r|b|rb|br)'
+
+contexts:
+  main:
+    # NOTE: If we see something that looks like a grammar rule, switch to grammar mode
+    - match: '(?={{identifier}})'
+      set: grammar
+    - include: comment
+    - include: metas
+    - include: empty-line
+    - include: invalid
+
+  empty-line:
+    - match: '\s*$\n?'
+
+  empty-line-pop:
+    - match: '\s*$\n?'
+      pop: true
+
+  eof-or-invalid-pop:
+    - match: '\s*$(?!\n)'
+      pop: true
+    - match: '[\s\S]*$\n'
+      scope: invalid
+      pop: true
+
+  allow-eof-pop:
+    - match: '$(?!\n)'
+      pop: true
+
+  invalid-empty-line-pop:
+    - match: '\s*$\n?'
+      scope: invalid
+      pop: true
+
+  ws:
+    - match: '[^\S\n]+'
+
+  invalid:
+    - match: '(?=[\s\S])'
+      push: invalid-rest-of-line
+
+  invalid-pop:
+    - match: ''
+      set: invalid-rest-of-line
+
+  invalid-rest-of-line:
+    - match: '\s+*$\n'
+      scope: invalid
+    - include: ws
+    - match: '(\S+\s+)*\S+'
+      scope: invalid
+    - match: '$\n?'
+      pop: true
+
+  comment:
+    - match: '(?=\s*(#))'
+      push: comment-pop
+
+  comment-pop:
+    - match: '\s*(#)([\s\S]*$\n?)'
+      captures:
+        1: punctuation.definition.comment
+        2: comment
+      scope: comment.line
+      pop: true
+
+  invalid-non-colon:
+    - match: '\S+(\s+\S+)*(?=\s*:)'
+      scope: invalid
+
+  invalid-non-eq:
+    - match: '\S+(\s+\S+)*(?=\s*=)'
+      scope: invalid
+
+  invalid-non-pipe:
+    - match: '((?!\|)\S)+(\s+((?!\|)\S)+)*(?=\s*\|)'
+      scope: invalid
+      pop: true
+
+  invalid-non-plus:
+    - match: '((?!\+)\S)+(\s+((?!\+)\S)+)*(?=\s*\+)'
+      scope: invalid
+
+  invalid-non-pipe-or-bracket-end:
+    - match: '((?!(\||\]))\S)+(\s+((?!(\||\]))\S)+)*(?=\s*(\||\]))'
+      scope: invalid
+      pop: true
+
+  invalid-non-pipe-or-parens-end:
+    - match: '((?!(\||\)))\S)+(\s+((?!(\||\)))\S)+)*(?=\s*(\||\)))'
+      scope: invalid
+      pop: true
+
+  invalid-non-empty-parens-body:
+    - match: '((?!\))\S)+(\s+((?!\))\S)+)*(?=\s*\))'
+      scope: invalid
+
+  # Meta attributes
+  metas:
+    - include: comment
+    - include: empty-line
+    - match: "@"
+      scope: punctuation.definition.variable
+      push: meta-name
+    - include: invalid
+
+  meta-name:
+    - match: '({{well_known_python_meta}})\b'
+      scope: variable.language
+      set: meta-value-python-common
+
+    - match: '({{well_known_meta}})\b'
+      scope: variable.language
+      set: meta-value-common
+
+    - match: '({{identifier}})\b'
+      scope: variable.other
+      set: meta-value-common
+
+    - include: invalid-pop
+
+  meta-value-python-common:
+    - include: ws
+    - match: ''
+      branch_point: meta-value-python-common-branch
+      branch:
+        - meta-value-none
+        - meta-value-python
+        - meta-value-identifier
+        - comment-pop
+        - invalid-pop
+      pop: true
+
+  meta-value-common:
+    - include: ws
+    - match: ''
+      branch_point: meta-value-common-branch
+      branch:
+        - meta-value-none
+        - meta-value-string
+        - meta-value-identifier
+        - comment-pop
+        - invalid-pop
+      pop: true
+
+  meta-value-none:
+    - include: ws
+    - match: '(?=#|$)'
+      set: meta-end
+    - match: ''
+      fail: meta-value-python-common-branch
+    - match: ''
+      fail: meta-value-common-branch
+
+  meta-value-identifier:
+    - match: '{{identifier}}'
+      scope: variable.other
+      set: meta-end
+    - match: ''
+      fail: meta-value-python-common-branch
+    - match: ''
+      fail: meta-value-common-branch
+
+  dquote-string:
+    - match: '{{string_prefix}}?\"'
+      scope: punctuation.definition.string.begin
+      set: dquote-string-body
+
+  dquote-string-body:
+    - match: '(\\[\s\S]|[^\n\\"])+'
+      scope: string.quoted.single
+    - include: invalid-empty-line-pop
+    - match: '"'
+      scope: punctuation.definition.string.end
+      pop: true
+
+  squote-string:
+    - match: "{{string_prefix}}?'"
+      scope: punctuation.definition.string.begin
+      set: squote-string-body
+
+  squote-string-body:
+    - match: '(\\[\s\S]|[^\n\\''])+'
+      scope: string.quoted.single
+    - include: invalid-empty-line-pop
+    - match: "'"
+      scope: punctuation.definition.string.end
+      pop: true
+
+  triple-squote-string:
+    - match: "{{string_prefix}}?'''"
+      scope: punctuation.definition.string.begin
+      set: triple-squote-string-body
+
+  triple-squote-string-body:
+    - match: '(''''?(?=[^''])|\\''|[^''])+?'
+      scope: string.quoted.triple
+    - match: "'''"
+      scope: punctuation.definition.string.end
+      pop: true
+
+  triple-dquote-string:
+    - match: '{{string_prefix}}?"""'
+      scope: punctuation.definition.string.begin
+      set: triple-dquote-string-body
+
+  triple-dquote-string-body:
+    - match: '(""?(?=[^"])|\\"|[^"])+?'
+      scope: string.quoted.triple
+    - match: '"""'
+      scope: punctuation.definition.string.end
+      pop: true
+
+  meta-value-string:
+    - match: '(?={{string_prefix}}?""")'
+      set: [meta-end, triple-dquote-string]
+    - match: '(?={{string_prefix}}?")'
+      set: [meta-end, dquote-string]
+    - match: "(?={{string_prefix}}?''')"
+      set: [meta-end, triple-squote-string]
+    - match: "(?={{string_prefix}}?')"
+      set: [meta-end, squote-string]
+    - match: ''
+      fail: meta-value-python-common-branch
+    - match: ''
+      fail: meta-value-common-branch
+
+  py-dquote-string:
+    - match: '{{string_prefix}}?"'
+      scope: punctuation.definition.generic.begin
+      set: py-dquote-string-body
+
+  py-dquote-invalid-body:
+    - match: '(\\[\s\S]|[^\n\\"])+$(?=\n)'
+      scope: string.quoted.single
+      set: invalid-empty-line-pop
+
+  py-dquote-string-body:
+    - include: py-dquote-invalid-body
+    - match: ''
+      embed: scope:source.python
+      escape: '"'
+      escape_captures:
+        0: punctuation.definition.generic.end
+      pop: true
+
+  py-squote-string:
+    - match: "{{string_prefix}}?'"
+      scope: punctuation.definition.generic.begin
+      set: py-squote-string-body
+
+  py-squote-invalid-body:
+    - match: '(\\[\s\S]|[^\n\\''])+$(?=\n)'
+      scope: string.quoted.single
+      set: invalid-empty-line-pop
+
+  py-squote-string-body:
+    - include: py-squote-invalid-body
+    - match: ''
+      embed: scope:source.python
+      escape: "'"
+      escape_captures:
+        0: punctuation.definition.generic.end
+      pop: true
+
+  py-triple-dquote-string:
+    - match: '{{string_prefix}}?"""'
+      scope: punctuation.definition.generic.begin
+      embed: scope:source.python
+      escape: '"""'
+      escape_captures:
+        0: punctuation.definition.generic.end
+      pop: true
+
+  py-triple-squote-string:
+    - match: "{{string_prefix}}?'''"
+      scope: punctuation.definition.generic.begin
+      embed: scope:source.python
+      escape: "'''"
+      escape_captures:
+        0: punctuation.definition.generic.end
+      pop: true
+
+  meta-value-python:
+    - match: '(?={{string_prefix}}?""")'
+      set: [meta-end, py-triple-dquote-string]
+    - match: "(?={{string_prefix}}?''')"
+      set: [meta-end, py-triple-squote-string]
+    - match: '(?={{string_prefix}}?")'
+      set: [meta-end, py-dquote-string]
+    - match: "(?={{string_prefix}}?')"
+      set: [meta-end, py-squote-string]
+    - match: ''
+      fail: meta-value-python-common-branch
+    - match: ''
+      fail: meta-value-common-branch
+
+  meta-end:
+    - include: ws
+    - include: empty-line-pop
+    - include: comment-pop
+    - include: invalid-pop
+
+  # Grammar
+  grammar:
+    - include: rule
+    - include: comment
+    - include: empty-line
+    - include: invalid
+
+  annotations:
+    - include: ws
+    - match: '\]'
+      scope: punctuation.section.brackets.end
+      pop: true
+    - include: Python.sublime-syntax#function-return-type-content
+
+  rule:
+    - match: '{{identifier}}\b'
+      scope: entity.name
+      push: rule-after-name
+
+  rule-after-name:
+    - match: ''
+      branch_point: rule-branch
+      branch:
+        - rule-with-memoflag-annotation
+        - rule-with-memoflag
+        - rule-with-annotation
+        - rule-plain
+        - invalid-pop
+      pop: true
+
+  rule-with-annotation:
+    - match: ''
+      set: [rule-colon, rule-annotation]
+
+  rule-with-memoflag-annotation:
+    - match: ''
+      set: [rule-colon, rule-memoflag, rule-annotation]
+
+  rule-with-memoflag:
+    - match: ''
+      set: [rule-colon, rule-memoflag]
+
+  rule-plain:
+    - match: ''
+      set: rule-colon
+
+  rule-colon:
+    - match: ':'
+      scope: punctuation.separator
+      branch_point: rule-colon-branch
+      branch:
+        - rhs-empty-invalid
+        - rule-rhs
+      pop: true
+    - include: invalid-non-colon
+    - include: invalid-pop
+    - match: ''
+      fail: rule-branch
+
+  rule-annotation-body:
+    - match: '\['
+      scope: punctuation.section.brackets.begin
+      set: annotations
+
+  rule-empty-bracket-check:
+    - match: '\['
+      scope: invalid
+      set:
+        - match: '\s+'
+          scope: invalid
+        - match: '\]'
+          scope: invalid
+          pop: true
+        - match: '(?=[^\]])'
+          fail: rule-annotation-bracket
+
+  rule-annotation:
+    - include: ws
+    - match: '\[\s*\]'
+      scope: invalid
+      pop: true
+    - match: '(?=\[)'
+      branch_point: rule-annotation-bracket
+      branch:
+        - rule-empty-bracket-check
+        - rule-annotation-body
+      pop: true
+    - match: ''
+      fail: rule-branch
+
+  rule-memoflag:
+    - include: ws
+    - match: '\(\s*\)'
+      scope: invalid
+      pop: true
+    - match: '\('
+      scope: punctuation.section.parens.begin
+      set: memoflag-body
+    - match: ''
+      fail: rule-branch
+
+  memoflag-body:
+    - include: ws
+    - match: 'memo\b'
+      scope: storage.modifier
+      set: memoflag-end
+    - match: ''
+      set: memoflag-end
+
+  memoflag-end:
+    - include: ws
+    - include: invalid-non-empty-parens-body
+    - match: '\)'
+      scope: punctuation.section.parens.end
+      pop: true
+    - match: ''
+      fail: rule-branch
+
+  rhs-empty-invalid:
+    - match: '\s*$\n'
+      scope: invalid
+      pop: true
+      set: rhs-empty-check
+    - match: ''
+      fail: rule-colon-branch
+
+  rhs-empty-check:
+    - include: comment
+    - include: empty-line
+    - match: '(?=\s+\|)'
+      fail: rule-colon-branch
+    - match: '(?=[\S|\s])'
+      pop: true
+
+  rule-rhs:
+    - include: ws
+    - match: '$\n?'
+      set: maybe-more-alts
+    - match: ''
+      push: maybe-alts
+    - include: invalid-pop
+
+  maybe-more-alts:
+    - include: comment
+    - match: '\s+(\|)'
+      scope: punctuation.separator
+      push: alts
+    - match: '(?=[^\s])'
+      pop: true
+
+  maybe-alts:
+    - match: '\|(\s*\|)*'
+      scope: invalid
+    - include: empty-line-pop
+    - include: comment-pop
+    - include: alts
+
+  alts:
+    - include: invalid-empty-line-pop
+    - match: ''
+      set: [alt-after, alt]
+
+  alt:
+    - include: invalid-empty-line-pop
+    - include: ws
+    - match: ''
+      set: [item-after-top, item]
+
+  alt-after:
+    - match: '[\)\]]'
+      scope: invalid
+      push: alt
+    - match: '\s*(\|\s*)(?=\|)'
+      captures:
+        1: invalid
+    - include: ws
+    - match: '\|'
+      scope: punctuation.separator
+      push: alt
+    - include: comment-pop
+    - include: invalid-non-pipe
+    - include: empty-line-pop
+    - include: invalid-pop
+
+  alts2:
+    - meta_scope: alts2
+    - match: ''
+      set: [alt-after2, alt2]
+
+  alt2:
+    - include: ws
+    - match: ''
+      set: [item-after, item]
+
+  alt-after2:
+    - include: ws
+    - match: '\)'
+      scope: invalid
+      push: alt2
+    - match: '\|\s*(?=\])'
+      scope: invalid
+    - match: '\|\s*(?=\|)'
+      scope: invalid
+    - match: '\|'
+      scope: punctuation.separator
+      push: alt2
+    - include: invalid-non-pipe-or-bracket-end
+    - match: '(\])\s*$\n?'
+      captures:
+        1: markup.bold punctuation.section.brackets.end
+      pop: true
+    - match: '\]'
+      scope: punctuation.section.brackets.end
+      pop: true
+    - include: empty-line-pop
+    - include: invalid-pop
+
+  item:
+    - include: ws
+    - match: ''
+      branch_point: item-branch
+      pop: true
+      branch:
+        - named-item-annotations
+        - named-item
+        - item-body
+
+  named-item-annotations:
+    - include: ws
+    - match: ''
+      set: [item-body, item-eq, item-annotation, item-identifier]
+
+  named-item:
+    - include: ws
+    - match: ''
+      set: [item-body, item-eq, item-identifier]
+
+  item-identifier:
+    - include: ws
+    - match: '{{identifier}}'
+      pop: true
+      scope: variable.other
+    - match: ''
+      fail: item-branch
+
+  item-annotation-body:
+    - match: '\['
+      scope: punctuation.section.brackets.begin
+      set: annotations
+
+  item-annotation-empty-bracket-check:
+    - match: '\['
+      scope: invalid
+      set:
+        - match: '\s+'
+          scope: invalid
+        - match: '\]'
+          scope: invalid
+          pop: true
+        - match: '(?=[^\]])'
+          fail: item-annotation-bracket
+
+  item-annotation:
+    - include: ws
+    - match: '\[\s*\]'
+      scope: invalid
+      pop: true
+    - match: '(?=\[)'
+      branch_point: item-annotation-bracket
+      branch:
+        - item-annotation-empty-bracket-check
+        - item-annotation-body
+      pop: true
+    - match: ''
+      fail: item-branch
+
+  item-eq:
+    - include: ws
+    - match: '='
+      scope: keyword.operator.assignment
+      pop: true
+    - match: ''
+      fail: item-branch
+
+  # item-body-body:
+  #   - match: '\['
+  #     scope: punctuation.section.brackets.begin
+  #     set: alts2
+  #     with_prototype:
+  #       - include: comment
+  #       - include: empty-line
+  #     pop: 4
+  #   - match: ''
+  #     pop: 4
+
+  # item-body-bracket1:
+  #   - match: ''
+  #     branch_point: item-body-bracket
+  #     branch:
+  #       - invalid-empty-brackets
+  #       - item-body-body
+  #     pop: 4
+
+  item-body-body:
+    - match: '\['
+      scope: asdf
+      set: alts2
+      with_prototype:
+        - include: comment
+        - include: empty-line
+
+  item-body-empty-bracket-check:
+    - match: '\['
+      scope: invalid
+      set:
+        - match: '\s+'
+          scope: invalid
+        - match: '\]'
+          scope: invalid
+          pop: true
+        - match: '(?=[^\]])'
+          fail: item-body-bracket
+
+  item-body:
+    - include: ws
+    - match: '&&|&|!'
+      scope: keyword.operator.logical
+      set: atom
+    - match: '~'
+      scope: keyword.operator.logical
+      pop: true
+    - match: '\[\s*\]'
+      scope: invalid
+      pop: true
+    - match: '(?=\[)'
+      branch_point: item-body-bracket
+      branch:
+        - item-body-empty-bracket-check
+        - item-body-body
+      pop: true
+    - match: ''
+      set: atom
+
+  item-action:
+    - match: '}'
+      scope: punctuation.section.brackets.end
+      pop: true
+    - include: Python.sublime-syntax#expression-as-a-statement
+
+  item-after-empty-brace-check:
+    - match: '{'
+      scope: invalid
+      set:
+        - match: '\s+'
+          scope: invalid
+        - match: '}'
+          scope: invalid
+          pop: true
+        - match: '(?=[^}])'
+          fail: item-after-brace
+
+  item-after-body:
+    - match: '{'
+      scope: punctuation.section.braces.begin
+      set: item-action
+
+  maybe-item-action:
+    - match: '(?={)'
+      branch_point: item-after-brace
+      branch: 
+        - item-after-empty-brace-check
+        - item-after-body
+
+  item-after:
+    - include: ws
+    - include: empty-line
+    - include: comment-pop
+    - meta_scope: item_after
+    - match: '{\s*}'
+      scope: invalid
+    - include: maybe-item-action
+    - match: '\s*(?!\||$|\)|\])'
+      push: item
+    - match: ''
+      pop: true
+
+  item-after-top:
+    - include: empty-line-pop
+    - include: item-after
+
+  atom:
+    - match: '(\s+)(?=\||\)|\])'
+      captures:
+        1: invalid
+      pop: true
+    - match: ''
+      set: [after-atom, atom-body]
+
+  atom-body-string:
+    - match: '(?={{string_prefix}}?""")'
+      set: triple-dquote-string
+    - match: "(?={{string_prefix}}?''')"
+      set: triple-squote-string
+    - match: '(?={{string_prefix}}?")'
+      set: dquote-string
+    - match: "(?={{string_prefix}}?')"
+      set: squote-string
+
+  alts3:
+    - match: ''
+      set: [alt-after3, alt3]
+
+  alt3:
+    - include: ws
+    - match: ''
+      set: [item-after, item]
+
+  alt-after3:
+    - match: '\s*(\|\s*)(?=\))'
+      captures:
+        1: invalid
+    - match: '\s*(\|\s*)(?=\|)'
+      captures:
+        1: invalid
+    - include: ws
+    - match: '\|'
+      scope: punctuation.separator
+      push: alt3
+    - include: invalid-non-pipe-or-parens-end
+    - match: '\)'
+      scope: punctuation.section.parens.end
+      pop: 2
+    - include: empty-line-pop
+    - include: invalid-pop
+
+  invalid-empty-parens:
+    - match: '\('
+      scope: invalid
+      set:
+        - match: '\s+'
+          scope: invalid
+        - match: '\)'
+          scope: invalid
+          pop: true
+        - match: '(?=[^\)])'
+          fail: atom-body-parens
+
+  atom-parens-body:
+    - match: '\('
+      scope: punctuation.section.parens.begin
+      set:
+        - match: ''
+          push: alts3
+          with_prototype:
+            - include: comment
+            - include: empty-line
+
+  atom-body:
+    - meta_scope: atom_body
+    - include: ws
+    - match: '{{identifier}}'
+      scope: variable.other
+      pop: true
+    - include: atom-body-string
+    - match: '\(\s*\)'
+      scope: invalid
+    - match: '(?=\()'
+      branch_point: atom-body-parens
+      branch:
+        - invalid-empty-parens
+        - atom-parens-body
+      pop: true
+      # NOTE: mark operators before atoms invalid and continue
+    - include: empty-line-pop
+    - match: '\*|\+|\?|\.'
+      scope: invalid
+
+    # NOTE: mark invalid atoms and pop.
+    #       closing braces are handled in item-after
+    - match: '[^\]\|\)\s]+'
+      scope: invalid
+      pop: true
+    - match: ''
+      pop: true
+
+  atom_sep_end:
+    - include: ws
+    - match: '\+'
+      scope: keyword.operator.logical
+      pop: true
+    - include: invalid-non-plus
+    - include: invalid-empty-line-pop
+    - include: invalid-pop
+
+  after-atom:
+    - meta_scope: after_atom
+    - include: ws
+    - match: '\.'
+      scope: keyword.operator.logical
+      set: [atom_sep_end, atom-body]
+    - match: '\?|\*|\+'
+      scope: keyword.operator.logical
+      pop: true
+    - match: ''
+      pop: true
